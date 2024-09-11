@@ -1,0 +1,72 @@
+pipeline {
+    agent any
+    
+    parameters {
+        string(name: 'KUBE_VM_IP', description: 'IP address of the CloudLab VM running Kubernetes')
+        string(name: 'KUBE_VM_USER', description: 'Username for the CloudLab VM')
+        string(name: 'DOCKER_REGISTRY', description: 'Docker registry URL', defaultValue: 'docker.io')
+        string(name: 'DOCKER_USERNAME', description: 'Docker registry username')
+    }
+    
+    environment {
+        DOCKER_IMAGE_NAME = 'my-python-app-for-jenkins'
+        DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Build and Push Docker Image') {
+            steps {
+                script {
+                    def dockerImage = "${params.DOCKER_REGISTRY}/${params.DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+                    
+                    sh "docker build -t ${dockerImage} ."
+                    
+                    withCredentials([usernamePassword(credentialsId: 'docker-registry-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh "echo $DOCKER_PASS | docker login ${params.DOCKER_REGISTRY} -u $DOCKER_USER --password-stdin"
+                    }
+                    
+                    sh "docker push ${dockerImage}"
+                }
+            }
+        }
+        
+        stage('Deploy App') {
+            steps {
+                sshagent(credentials: ['cloudlab-ssh-key']) {
+                    script {
+                        def dockerImage = "${params.DOCKER_REGISTRY}/${params.DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+                        
+                        sh """
+                            scp k8s/*.yaml ${params.KUBE_VM_USER}@${params.KUBE_VM_IP}:~/
+                            ssh ${params.KUBE_VM_USER}@${params.KUBE_VM_IP} '
+                                sed -i 's|image: .*|image: ${dockerImage}|' deployment.yaml
+                                kubectl apply -n python-app -f deployment.yaml
+                                kubectl apply -n python-app -f service.yaml
+                            '
+                        """
+                    }
+                }
+                sleep(time: 120, unit: "SECONDS")
+            }
+        }
+        
+        stage('Verify Deployment') {
+            steps {
+                sshagent(credentials: ['cloudlab-ssh-key']) {
+                    sh """
+                        ssh ${params.KUBE_VM_USER}@${params.KUBE_VM_IP} '
+                            kubectl get pods -n python-app
+                            kubectl get services -n python-app -o wide
+                        '
+                    """
+                }
+            }
+        }
+    }
+}

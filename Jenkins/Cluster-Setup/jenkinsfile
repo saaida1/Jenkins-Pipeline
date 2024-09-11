@@ -1,0 +1,37 @@
+pipeline {
+    agent any
+    
+    parameters {
+        string(name: 'KUBE_VM_IP', description: 'IP address of the CloudLab VM for Kubernetes')
+        string(name: 'KUBE_VM_USER', description: 'Username for the CloudLab VM')
+    }
+    
+    stages {
+        stage('Setup Kubernetes') {
+            steps {
+                sshagent(credentials: ['cloudlab-ssh-key']) {
+                    sh """
+                        ssh ${params.KUBE_VM_USER}@${params.KUBE_VM_IP} '
+                            sudo systemctl start kubelet
+                            kubectl wait --for=condition=Ready node --all --timeout=300s
+                            kubectl create namespace python-app --dry-run=client -o yaml | kubectl apply -f -
+                        '
+                    """
+                }
+            }
+        }
+        
+        stage('Verify Cluster') {
+            steps {
+                sshagent(credentials: ['cloudlab-ssh-key']) {
+                    sh """
+                        ssh ${params.KUBE_VM_USER}@${params.KUBE_VM_IP} '
+                            kubectl get nodes
+                            kubectl get namespaces
+                        '
+                    """
+                }
+            }
+        }
+    }
+}

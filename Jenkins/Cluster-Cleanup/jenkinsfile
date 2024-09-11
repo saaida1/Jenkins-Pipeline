@@ -1,0 +1,35 @@
+pipeline {
+    agent any
+    
+    parameters {
+        string(name: 'KUBE_VM_IP', description: 'IP address of the CloudLab VM running Kubernetes')
+        string(name: 'KUBE_VM_USER', description: 'Username for the CloudLab VM')
+    }
+    
+    stages {
+        stage('Cleanup Cluster') {
+            steps {
+                sshagent(credentials: ['cloudlab-ssh-key']) {
+                    sh """
+                        ssh ${params.KUBE_VM_USER}@${params.KUBE_VM_IP} '
+                            kubectl delete namespace python-app
+                        '
+                    """
+                }
+            }
+        }
+        
+        stage('Verify Cleanup') {
+            steps {
+                sshagent(credentials: ['cloudlab-ssh-key']) {
+                    sh """
+                        ssh ${params.KUBE_VM_USER}@${params.KUBE_VM_IP} '
+                            kubectl get namespaces
+                            kubectl get pods --all-namespaces
+                        '
+                    """
+                }
+            }
+        }
+    }
+}
