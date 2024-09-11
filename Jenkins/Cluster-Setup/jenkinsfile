@@ -5,7 +5,7 @@ pipeline {
         stage('Setup Kubernetes') {
             steps {
                 script {
-                    // Run Kubernetes setup commands directly on the local host
+                    // Run Kubernetes setup commands directly on the localhost
                     sh '''
                         sudo systemctl start kubelet
                         kubectl wait --for=condition=Ready node --all --timeout=300s
