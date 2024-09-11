@@ -17,6 +17,6 @@ spec:
     spec:
       containers:
       - name: myapp
-        image: saaida/my-django-app:latest
+        image: saaida/my-python-app-for-jenkins:latest
         ports:
         - containerPort: 8000
