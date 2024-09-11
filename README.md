@@ -1,2 +1,2 @@
-# Number-Guessing-Game
-This is a very simple python-django app to test docker, docker compose &amp; k8s 
+# Jenkins-Pipeline
+This project sets up a CI/CD pipeline using Jenkins on CloudLab  to automate deployment and testing of a Python application
